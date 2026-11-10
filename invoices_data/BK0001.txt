@@ -1,0 +1,22 @@
+========== STAYEASY HOTEL ==========
+Invoice Number: BK0001
+Invoice Date: 10-11-2026
+
+----- Guest Details -----
+Guest Name: varshini
+Mobile Number: 9177898287
+Email: v@gmail.com
+
+----- Room Details -----
+Room Number: 101
+Room Type: Standard
+Check-in: 2026-11-10
+Check-out: 2026-11-12
+Number of Guests: 2
+
+----- Payment Details -----
+Room Revenue: Rs.6400.00
+GST Amount: Rs.600.00
+Total Amount: Rs.7000.00
+
+Thank you for choosing StayEasy Hotel!
