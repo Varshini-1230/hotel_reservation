@@ -5,8 +5,7 @@ from database1 import (
     create_tables,insert_valid_rooms,find_guest_by_mobile,allocate_room,
     get_completed_stays,get_all_rooms,search_availability,get_room_details,
     insert_booking,get_book_details,update_booking_status,
-    get_occupancy_report,get_revenue,get_guest_stay_history,cancel_booking_record,create_connection
-    )
+    get_occupancy_report,get_revenue,get_guest_stay_history,cancel_booking_record,create_connection)
 from guest_services import guestservices,get_guest_details
 from room_csv_validation import rooms
 from pricing import Pricing
@@ -28,7 +27,7 @@ def search_room_availability():
         
         result=search_availability(room_type,check_in_db,check_out_db,no_of_guests)
         if not result:
-            print(f"No {room_type} rooms available for {no_of_guests} guests.")
+            print(f"No {room_type} rooms available for {no_of_guests} guests")
             print("\nChecking other room types")
             other_rooms=get_all_rooms()
             available_rooms=[]
@@ -36,7 +35,7 @@ def search_room_availability():
                 if room[1]!=room_type and room[4]>=no_of_guests:
                     available_rooms.append(room)
             if not available_rooms:
-                print("No other room types can accommodate the guests.")
+                print("No other room types can accommodate the guests")
                 return
             print("\nOther available rooms:")
             for room in available_rooms:
@@ -50,12 +49,12 @@ def search_room_availability():
                 "Floor:",room[2],"Rate:",room[3],"Maximum Guests:",room[4])
     except (ValueError,TypeError) as e:
         print("Error:",e)
+        
 def create_booking():
     while True:
         try:
             mobile=input("Enter mobile number:")
-            existing_guest=find_guest_by_mobile(mobile)
-            
+            existing_guest=find_guest_by_mobile(mobile) 
             if existing_guest:
                 print("Registered guest found")
                 print("Guest Name:",existing_guest[2])
@@ -73,7 +72,6 @@ def create_booking():
                         break
                     except ValueError as e:
                         print("Error:",e)
-                        
                 guest_id=guestservices().register_guest(guest)
             room_type=input("Enter Room Type (Standard/Deluxe/Suite):").strip().capitalize()
             check_in=input("Enter Check-in Date (DD-MM-YYYY):")
@@ -226,7 +224,7 @@ def cancel_booking():
         else:
             refund_amount=0
             print("Refunded 0%")
-        cancel_booking_record(booking_id)
+        cancel_booking_record(booking_id,refund_amount)
         # update_booking_status(booking_id,"CANCELLED")
         print('Booking cancelled')
         print("Booking ID:",booking_id)
@@ -274,14 +272,36 @@ def guest_stay_history():
     except Exception as e:
         print('Error:',e)
 
+
+# def occupancy_report():
+#     result=get_occupancy_report()
+#     print("\nOccupancy Report")
+#     if not result:
+#         print("No occupancy data available")
+#         return
+#     for row in result:
+#         print("Room Number:",row[0],"Room Type:",row[1],"Bookings:",row[2])
+        
 def occupancy_report():
-    result=get_occupancy_report()
-    print("\nOccupancy Report")
-    if not result:
-        print("No occupancy data available")
-        return
-    for row in result:
-        print("Room Number:",row[0],"Room Type:",row[1],"Bookings:",row[2])
+    try:
+        start_date=input("Enter check_in date:")
+        end_date=input("Enter check_out date:")
+        start_date=datetime.strptime(start_date,"%d-%m-%Y").strftime("%Y-%m-%d")
+        end_date=datetime.strptime(end_date,"%d-%m-%Y").strftime("%Y-%m-%d")
+        if start_date>=end_date:
+            print("Check_out date must be after check_in date")
+            return 
+        result , average=get_occupancy_report(start_date,end_date)
+        print("Occupancy Report")
+        if not result:
+            print("No rooms available")
+            return 
+        for row in result:
+            print("\nDate:",row[0],"\nOccupied Rooms:",row[1],"\nTotal Rooms:",row[2],"\nOccupancy Percentage:",round(row[3],2))
+        print("Average Occupancy:",round(average,2))
+    except ValueError:
+        print("Invalid date format")
+        
 def revenue_report():
     result=get_revenue()
     print("\nRevenue Report")
@@ -328,13 +348,13 @@ def create_invoice():
         
 def export_bookings_to_csv():
     import csv
-    import os
     from database1 import get_bookings
     bookings=get_bookings()
     with open("bookings_export.csv","w",newline="",encoding="utf-8") as file:
         writer=csv.writer(file)
         writer.writerow(["Booking ID","Guest ID","Room Number","Check-in",
-                        "Check-out","Guests","Total Amount","Status"])
+                        "Check-out","Guests","Total Amount","Status",
+                        "Room Revenue","GST Amount","Refund Amount"])
         writer.writerows(bookings)
     print("Bookings exported to bookings_export.csv")
 

@@ -1,7 +1,5 @@
-# from room_csv_validation import rooms
-
 import sqlite3
-# DB_NAME="hotel.db"
+from datetime import datetime,timedelta
 def create_connection():
     conn=sqlite3.connect("booking.db")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -25,8 +23,7 @@ def create_tables():
         floor INTEGER NOT NULL,
         base_rate REAL NOT NULL,
         max_guest INTEGER NOT NULL,
-        availability INTEGER NOT NULL DEFAULT 1
-    )""")
+        availability INTEGER NOT NULL DEFAULT 1)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS bookings(
     booking_id INTEGER PRIMARY KEY AUTOINCREMENT,
     guest_id INTEGER NOT NULL,
@@ -51,9 +48,6 @@ def insert_guest(mobile_no,name,email,no_of_guest):
         VALUES(?,?,?,?)""",(mobile_no,name,email,no_of_guest))
     guest_id=cur.lastrowid
     conn.commit()
-    # cur.execute("select * from guests")
-    # for row in cur.fetchall():
-    #     print(row)
     conn.close()
     return guest_id
     
@@ -86,7 +80,6 @@ def insert_valid_rooms(rooms_objects):
     conn.commit()
     conn.close()
     return inserted_count
-# insert_valid_rooms(rooms)
 
 def get_all_rooms():
     conn=create_connection()
@@ -128,11 +121,8 @@ def get_room_details(room_no):
         "max_guest":room[4]
     }
 
-
 def allocate_room(room_type,no_of_guests,check_in_db,check_out_db,rooms_objects):
-    # available_rooms=search_availability(room_type,check_in_db,check_out_db,no_of_guests)
-    available_rooms=search_availability(
-    room_type,check_in_db,check_out_db,no_of_guests)
+    available_rooms=search_availability(room_type,check_in_db,check_out_db,no_of_guests)
     if available_rooms:
         room_no=available_rooms[0][0]
         for room in rooms_objects:
@@ -154,8 +144,7 @@ def allocate_room(room_type,no_of_guests,check_in_db,check_out_db,rooms_objects)
         return None
     
 def insert_booking(guest_id,room_no,check_in,check_out,
-                   no_of_guests,room_revenue,gst_amount,
-                   booking_status="CONFIRMED"):
+                no_of_guests,room_revenue,gst_amount,booking_status="CONFIRMED"):
     total_amount=room_revenue+gst_amount
     refund_amount=0
     conn=create_connection()
@@ -165,7 +154,7 @@ def insert_booking(guest_id,room_no,check_in,check_out,
         room_revenue,gst_amount,refund_amount)
         VALUES(?,?,?,?,?,?,?,?,?,?)""",
         (guest_id,room_no,check_in,check_out,no_of_guests,total_amount,booking_status,
-         room_revenue,gst_amount,refund_amount))
+        room_revenue,gst_amount,refund_amount))
 
     booking_id=cur.lastrowid
     conn.commit()
@@ -210,10 +199,8 @@ def update_booking_status(booking_id,status):
     conn=create_connection()
     cur=conn.cursor()
     cur.execute("""
-        UPDATE bookings
-        SET booking_status=?
-        WHERE booking_id=?
-    """,(status,booking_id))
+        UPDATE bookings SET booking_status=?
+        WHERE booking_id=?""",(status,booking_id))
     updated=cur.rowcount
     conn.commit()
     conn.close()
@@ -227,49 +214,67 @@ def get_guest_stay_history(guest_id):
     result=cur.fetchall()
     conn.close()
     return result
-def get_occupancy_report():
-    conn=create_connection()
-    cur=conn.cursor()
-    # cur.execute("""select r.room_no,r.room_type,count(b.booking_id) as booking_count
-    #             from rooms r LEFT JOIN bookings b 
-    #             ON r.room_no =b.room_no
-    #             AND b.booking_status in ("CONFIRMED","CHECKED_IN")
-    #             GROUP BY r.room_no,r.room_type ORDER BY r.room_no
-    #             """)
-    cur.execute("""SELECT r.room_no,r.room_type,
-                COUNT(b.booking_id) AS booking_count
-                FROM rooms r LEFT JOIN bookings b
-                ON r.room_no=b.room_no
-                AND b.booking_status in ('CONFIRMED','CHECKED_IN','CHECKED_OUT')
-                GROUP BY r.room_no,r.room_type
-                ORDER BY r.room_no""")
-    result=cur.fetchall()
-    conn.close()
-    return result
+# def get_occupancy_report():
+#     conn=create_connection()
+#     cur=conn.cursor()
+#     cur.execute("""SELECT r.room_no,r.room_type,
+#                 COUNT(b.booking_id) AS booking_count
+#                 FROM rooms r LEFT JOIN bookings b
+#                 ON r.room_no=b.room_no
+#                 AND b.booking_status in ('CONFIRMED','CHECKED_IN','CHECKED_OUT')
+#                 GROUP BY r.room_no,r.room_type
+#                 ORDER BY r.room_no""")
+#     result=cur.fetchall()
+#     conn.close()
+#     return result
 
-def cancel_booking_record(booking_id):
+def get_occupancy_report(start_date,end_date):
     conn=create_connection()
     cur=conn.cursor()
-    cur.execute("""
-        UPDATE bookings
-        SET booking_status=?
-        WHERE booking_id=?
-    """,("CANCELLED",booking_id))
+    cur.execute("select count(*) from rooms")
+    total_rooms=cur.fetchone()[0]
+    if total_rooms==0:
+        conn.close()
+        return [],0
+    
+    current_date=datetime.strptime(start_date,"%Y-%m-%d").date()
+    last_date=datetime.strptime(end_date,"%Y-%m-%d").date()
+    result=[]
+    total_percent=0
+    nights=0
+    while current_date<last_date:
+        date_str=current_date.strftime("%Y-%m-%d")
+        cur.execute("""select COUNT(distinct room_no) from bookings where check_in <= ?
+                    AND check_out>? AND booking_status != 'CANCELLED'""",(date_str,date_str))
+        occupied=cur.fetchone()[0]
+        percentage=(occupied/total_rooms)*100
+        result.append((date_str,occupied,total_rooms,percentage))
+        total_percent+=percentage
+        nights+=1
+        current_date+=timedelta(days=1)
+    average=total_percent/nights if nights>0 else 0
+    conn.close()
+    return result,average
+
+def cancel_booking_record(booking_id,refund_amount):
+    conn=create_connection()
+    cur=conn.cursor()
+    cur.execute("""UPDATE bookings SET booking_status=?,refund_amount=?
+        WHERE booking_id=?""",("CANCELLED",refund_amount,booking_id))
     conn.commit()
     conn.close()
 
 def get_revenue():
     conn=create_connection()
     cur=conn.cursor()
-    cur.execute("""
-        SELECT r.room_type,
-               COUNT(CASE WHEN b.booking_status='CHECKED_OUT' THEN 1 END),
-               COALESCE(SUM(CASE WHEN b.booking_status='CHECKED_OUT'
-                   THEN b.room_revenue ELSE 0 END),0),
-               COALESCE(SUM(CASE WHEN b.booking_status='CHECKED_OUT'
-                   THEN b.gst_amount ELSE 0 END),0),
-               COALESCE(SUM(CASE WHEN b.booking_status='CANCELLED'
-                   THEN b.total_amount-b.refund_amount ELSE 0 END),0)
+    cur.execute("""SELECT r.room_type,
+            COUNT(CASE WHEN b.booking_status='CHECKED_OUT' THEN 1 END),
+            COALESCE(SUM(CASE WHEN b.booking_status='CHECKED_OUT'
+                THEN b.room_revenue ELSE 0 END),0),
+            COALESCE(SUM(CASE WHEN b.booking_status='CHECKED_OUT'
+                THEN b.gst_amount ELSE 0 END),0),
+            COALESCE(SUM(CASE WHEN b.booking_status='CANCELLED'
+                THEN b.total_amount-b.refund_amount ELSE 0 END),0)
         FROM rooms r
         LEFT JOIN bookings b ON r.room_no=b.room_no
         GROUP BY r.room_type
@@ -283,9 +288,9 @@ def get_invoice_data(booking_id):
     cur=conn.cursor()
     cur.execute("""
         SELECT b.booking_id,g.name,g.mobile_no,g.email,
-               r.room_no,r.room_type,b.check_in,b.check_out,
-               b.no_of_guests,b.room_revenue,
-               b.gst_amount,b.total_amount
+            r.room_no,r.room_type,b.check_in,b.check_out,
+            b.no_of_guests,b.room_revenue,
+            b.gst_amount,b.total_amount
         FROM bookings b
         JOIN guests g ON b.guest_id=g.guest_id
         JOIN rooms r ON b.room_no=r.room_no
